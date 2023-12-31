@@ -44,7 +44,7 @@ fun fSquare(): (Int) -> Int = { it * it }
 fun fCube(): (Int) -> Int = { it * it * it }
 fun fInv(): (Int) -> Int = { it * -1 }
 fun fRev(): (Int) -> Int = { if (it >= 0) it.toString().reversed().toInt() else fRev()(abs(it)) * -1 }
-fun fDigitSum(): (Int) -> Int = { DigitSum(it) }
+fun fDigitSum(): (Int) -> Int = { DigitSum(it) * (if (it < 0) -1 else 1) }
 fun fDigitSwapL(): (Int) -> Int = {
     val str = it.toString()
     val begin = str.first()
