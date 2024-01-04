@@ -5,10 +5,8 @@ import kotlin.math.roundToInt
 fun Int.pow(exp: Int): Int {
     if (exp == 0)
         return 1
-    if (exp == 1)
-        return this
     var result = this
-    repeat(exp) {
+    repeat(exp - 1) {
         result *= this
     }
     return result
@@ -16,7 +14,35 @@ fun Int.pow(exp: Int): Int {
 
 fun Int.countDigits(): Int = kotlin.math.ceil(kotlin.math.log10(this.toDouble())).toInt()
 
-data class State(val doneMoves: List<String>, val value: Int, val availableMoves: List<NamedMove>)
+data class Fixation(val pos: Int, val value: Int) {
+    fun resolve(input: Int): Int {
+        val list = input.toString().filter { it.isDigit() }.map { it.digitToInt() }.toMutableList()
+        if (this.pos != 1 && this.pos > list.size) {
+            return this.value * 10.pow(this.pos - 1) + input
+        } else {
+            list[list.size - this.pos] = this.value
+            val result = list.joinToString("").toInt()
+            return if (input < 0) -result else result
+        }
+    }
+}
+
+fun fixationFromNumber(pos: Int, number: Int): Fixation? {
+    val numStr = number.toString()
+    val char = numStr[numStr.length - pos]
+    if (!char.isDigit())
+        return null
+    val digit = char.digitToInt()
+    return Fixation(pos, digit)
+}
+
+data class State(
+    val doneMoves: List<String>,
+    val value: Int,
+    val availableMoves: List<NamedMove>,
+    val fixation: Fixation? = null
+)
+
 data class Portal(val drop: Int, val inject: Int)
 
 abstract class NamedMove(val name: String)
@@ -29,10 +55,18 @@ class NumberedSingleMove(
 ) :
     SingleMove(name, moveFunc(value))
 
-class RangedMove(name: String, val move: (Int) -> List<Pair<String, Int>>) : NamedMove(name)
+open class RangedMove(name: String, val move: (Int) -> List<Pair<String, Int>>) : NamedMove(name)
+class NumberedRangedMove(
+    name: String,
+    val value: Int,
+    val moveFunc: (Int) -> ((Int) -> List<Pair<String, Int>>),
+    val nameCompositor: (Int) -> String
+) : RangedMove(name, moveFunc(value))
+
 class ButtonChangeMove(name: String, val move: (Int) -> Int) : NamedMove(name)
 class StoreMove : NamedMove("store")
 class RestoreMove(name: String, move: (Int) -> Int) : SingleMove(name, move)
+class FixMove : NamedMove("fix")
 
 infix fun String.singleMove(move: (Int) -> Int) = SingleMove(this, move)
 infix fun String.rangedMove(move: (Int) -> List<Pair<String, Int>>) = RangedMove(this, move)
@@ -107,10 +141,20 @@ fun fDel(): (Int) -> List<Pair<String, Int>> = {
         }
 }
 
-fun fInsert(str: String): (Int) -> List<Pair<String, Int>> = {
+fun fInsert(x: Int): (Int) -> List<Pair<String, Int>> = {
+    val str = x.toString()
     val number = it.toString()
     (0..number.length).map { index ->
         "ins$str.${index + 1}" to (number.substring(0, index) + str + number.substring(index)).toInt()
+    }
+}
+
+fun fReplace(x: Int): (Int) -> List<Pair<String, Int>> = {
+    val number = it.toString().toCharArray()
+    (number.indices).map { index ->
+        val mod = number.copyOf()
+        mod[index] = x.digitToChar()
+        "rep$x.${index + 1}" to mod.joinToString("").toInt()
     }
 }
 
@@ -253,8 +297,16 @@ fun decode(input: String): Cfg {
 
     val moves = inputs.subList(4, inputs.size).map { token ->
         when {
-            token.startsWith("p+") -> token rangedMove fAddXAtDigit(token.substring(2).toInt())
-            token.startsWith("p-") -> token rangedMove fSubtractXAtDigit(token.substring(2).toInt())
+            token.startsWith("p+") -> NumberedRangedMove(
+                token,
+                token.substring(2).toInt(),
+                ::fAddXAtDigit,
+                { "p+" + it })// token rangedMove fAddXAtDigit(token.substring(2).toInt())
+            token.startsWith("p-") -> NumberedRangedMove(
+                token,
+                token.substring(2).toInt(),
+                ::fSubtractXAtDigit,
+                { "p-" + it }) // token rangedMove fSubtractXAtDigit(token.substring(2).toInt())
             token.startsWith('+') -> NumberedSingleMove(
                 token,
                 token.substring(1).toInt(),
@@ -295,6 +347,7 @@ fun decode(input: String): Cfg {
             token == "sd" || token == "s<" -> token singleMove fSortDesc()
             token == "q" || token == "d" || token == "sum" -> token singleMove fDigitSum()
             token == "store" -> StoreMove()
+            token == "fix" || token == "lock" -> FixMove()
             token.startsWith('s', true) -> {
                 val nums = token.substring(1).split('.')
                 token singleMove fSubst(nums[0], nums[1])
@@ -308,7 +361,16 @@ fun decode(input: String): Cfg {
             token == "m" || token == "mir" || token == "mirror" -> token singleMove fMirror()
             token == "inv10" -> token singleMove fInv10()
             token in removeList -> token rangedMove fDel()
-            token.startsWith("ins") -> token rangedMove fInsert(token.substring(3))
+            token.startsWith("ins") -> NumberedRangedMove(
+                token,
+                token.substring(3).toInt(),
+                ::fInsert,
+                { "ins" + it })//
+            token.startsWith("rep") -> NumberedRangedMove(
+                token,
+                token.substring(3).toInt(),
+                ::fReplace,
+                { "rep" + it })// // token rangedMove fInsert(token.substring(3))
             token.startsWith("b+") -> ButtonChangeMove(token, fAddX(token.substring(2).toInt()))
             else -> NumberedSingleMove(token, token.toInt(), ::fAddDigits, { it.toString() })
         }
@@ -339,41 +401,58 @@ fun operate(cfg: Cfg) {
             continue
         if (current.value >= 1_000_000)
             continue
-        if (current.value == target) {
-            println(current.doneMoves.joinToString(", "))
-//            current.moves.forEach(::println)
-            return
-        }
 
         val portalized = portalize(current.value, cfg.portal)
         if (portalized != current.value) {
             queue.offer(State(current.doneMoves, portalized, current.availableMoves))
             continue
         }
+
+        if (current.fixation != null && !current.doneMoves.last().startsWith("fix")) {
+            queue.offer(State(current.doneMoves, current.fixation.resolve(current.value), current.availableMoves, null))
+            continue
+        }
+
+        if (current.value == target) {
+            println(current.doneMoves.joinToString(", "))
+//            current.moves.forEach(::println)
+            return
+        }
+
+
         if (current.doneMoves.size == maxdepth)
             continue
 
+
         val moves = current.availableMoves.filterIsInstance<SingleMove>()
         moves.forEach {
-            queue.offer(State(current.doneMoves appendCopy it.name, it.move(current.value), current.availableMoves))
+            queue.offer(State(current.doneMoves appendCopy it.name, it.move(current.value), current.availableMoves, current.fixation))
         }
 
         val rangedMoves = current.availableMoves.filterIsInstance<RangedMove>()
         rangedMoves.map { it.move(current.value) }.flatten().forEach {
-            queue.offer(State(current.doneMoves appendCopy it.first, it.second, current.availableMoves))
+            queue.offer(State(current.doneMoves appendCopy it.first, it.second, current.availableMoves, current.fixation))
         }
 
         val buttonChangeMoves = current.availableMoves.filterIsInstance<ButtonChangeMove>()
         buttonChangeMoves.map { btnMove ->
             btnMove to current.availableMoves.map {
-                if (it is NumberedSingleMove) {
-                    val newBtnNum = btnMove.move(it.value)
-                    NumberedSingleMove(it.nameCompositor(newBtnNum), newBtnNum, it.moveFunc, it.nameCompositor)
-                } else
-                    it
+                when (it) {
+                    is NumberedSingleMove -> {
+                        val newBtnNum = btnMove.move(it.value)
+                        NumberedSingleMove(it.nameCompositor(newBtnNum), newBtnNum, it.moveFunc, it.nameCompositor)
+                    }
+
+                    is NumberedRangedMove -> {
+                        val newBtnNum = btnMove.move(it.value)
+                        NumberedRangedMove(it.nameCompositor(newBtnNum), newBtnNum, it.moveFunc, it.nameCompositor)
+                    }
+
+                    else -> it
+                }
             }
         }.forEach {
-            queue.offer(State(current.doneMoves appendCopy it.first.name, current.value, it.second))
+            queue.offer(State(current.doneMoves appendCopy it.first.name, current.value, it.second, current.fixation))
         }
 
         val storeMove = current.availableMoves.filterIsInstance<StoreMove>().firstOrNull()
@@ -381,7 +460,20 @@ fun operate(cfg: Cfg) {
             val newMoves = current.availableMoves.toMutableList()
             newMoves.removeIf { it is RestoreMove }
             newMoves.add(RestoreMove("rest${current.value}", fAddDigits(current.value)))
-            queue.offer(State(current.doneMoves appendCopy storeMove.name, current.value, newMoves))
+            queue.offer(State(current.doneMoves appendCopy storeMove.name, current.value, newMoves, current.fixation))
+        }
+
+        if (current.availableMoves.filterIsInstance<FixMove>().any() && current.fixation == null) {
+            current.value.toString().indices.map { it + 1 }.forEach {
+                queue.offer(
+                    State(
+                        current.doneMoves appendCopy "fix$it",
+                        current.value,
+                        current.availableMoves,
+                        fixationFromNumber(it, current.value)
+                    )
+                )
+            }
         }
     }
 
@@ -417,49 +509,8 @@ fun portalize(num: Int, portal: Portal?): Int {
 }
 
 fun main() {
-    val portal = Portal(3, 1)
-    val cases = listOf(
-        99 to 99,
-        98 to 98,
-        981 to 90,
-        90 to 90,
-        991 to 100,
-        100 to 1
-    )
-    cases.forEach {
-        println("${it.first} IS ${portalize(it.first, portal)} OUGHT ${it.second}")
-    }
-    val p2 = Portal(3, 2)
-    val cases2 = listOf(
-        966 to 156,
-        156 to 66,
-        944 to 134,
-        134 to 44,
-        946 to 136,
-        136 to 46,
-        964 to 154,
-        154 to 64
-    )
-    cases2.forEach {
-        println("${it.first} IS ${portalize(it.first, p2)} OUGHT ${it.second}")
-    }
-    val p3 = Portal(4, 1)
-    val cases3 = listOf(
-        30110 to 3110,
-        3110 to 113,
-        3013 to 16,
-        29910 to 2919,
-        2919 to 921,
-    )
-
-    cases3.forEach {
-        println("${it.first} IS ${portalize(it.first, p3)} OUGHT ${it.second}")
-    }
-
-    val input = "6,13,5,,b+1,p+1,s43.2"
-    //val input = "36,13,5,,b+1,p+1,s43.2"
+    val input = "9,35,4,,lock,ins7,sum"
     println(input)
-    //val input =  "1199, 90, 5, m, shift2, 10"
     val cfg = decode(input)
     operate(cfg)
 }
