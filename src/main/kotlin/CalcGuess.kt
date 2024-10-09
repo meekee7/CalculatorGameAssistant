@@ -1,3 +1,5 @@
+package calc
+
 import java.util.*
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -385,7 +387,7 @@ fun decode(input: String): Cfg {
     )
 }
 
-fun operate(cfg: Cfg) {
+fun operate(cfg: Cfg) : List<String> {
     val maxdepth = cfg.max
     val target = cfg.target
     val start = cfg.start
@@ -414,9 +416,9 @@ fun operate(cfg: Cfg) {
         }
 
         if (current.value == target) {
-            println(current.doneMoves.joinToString(", "))
+            //println(current.doneMoves.joinToString(", "))
 //            current.moves.forEach(::println)
-            return
+            return current.doneMoves
         }
 
 
@@ -477,11 +479,11 @@ fun operate(cfg: Cfg) {
         }
     }
 
-    println("Solution not found")
+    throw IllegalStateException("Solution not found")
 }
 
 fun exec(input: String) {
-    operate(decode(input))
+    println(operate(decode(input)).joinToString(", "))
 }
 
 fun String.x() {
@@ -512,5 +514,5 @@ fun main() {
     val input = "9,35,4,,lock,ins7,sum"
     println(input)
     val cfg = decode(input)
-    operate(cfg)
+    println(operate(cfg).joinToString(", "))
 }
