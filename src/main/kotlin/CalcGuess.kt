@@ -391,10 +391,10 @@ fun operate(cfg: Cfg) : List<String> {
     val maxdepth = cfg.max
     val target = cfg.target
     val start = cfg.start
-    val intialMoves = cfg.moves
+    val initialMoves = cfg.moves
 
     val queue: Queue<State> = LinkedList()
-    queue += State(emptyList(), start, intialMoves)
+    queue += State(emptyList(), start, initialMoves)
 
     while (queue.isNotEmpty()) {
         val current = queue.poll()
