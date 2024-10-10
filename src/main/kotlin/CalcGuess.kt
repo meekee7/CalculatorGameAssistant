@@ -73,12 +73,6 @@ class FixMove : NamedMove("fix")
 infix fun String.singleMove(move: (Int) -> Int) = SingleMove(this, move)
 infix fun String.rangedMove(move: (Int) -> List<Pair<String, Int>>) = RangedMove(this, move)
 
-infix fun List<String>.appendCopy(value: String): List<String> {
-    val copy = this.toMutableList()
-    copy.add(value)
-    return copy
-}
-
 fun DigitSum(x: Int): Int = when {
     x < 0 -> DigitSum(-x)
     x < 10 -> x
@@ -428,12 +422,12 @@ fun operate(cfg: Cfg) : List<String> {
 
         val moves = current.availableMoves.filterIsInstance<SingleMove>()
         moves.forEach {
-            queue.offer(State(current.doneMoves appendCopy it.name, it.move(current.value), current.availableMoves, current.fixation))
+            queue.offer(State(current.doneMoves + it.name, it.move(current.value), current.availableMoves, current.fixation))
         }
 
         val rangedMoves = current.availableMoves.filterIsInstance<RangedMove>()
         rangedMoves.map { it.move(current.value) }.flatten().forEach {
-            queue.offer(State(current.doneMoves appendCopy it.first, it.second, current.availableMoves, current.fixation))
+            queue.offer(State(current.doneMoves + it.first, it.second, current.availableMoves, current.fixation))
         }
 
         val buttonChangeMoves = current.availableMoves.filterIsInstance<ButtonChangeMove>()
@@ -454,7 +448,7 @@ fun operate(cfg: Cfg) : List<String> {
                 }
             }
         }.forEach {
-            queue.offer(State(current.doneMoves appendCopy it.first.name, current.value, it.second, current.fixation))
+            queue.offer(State(current.doneMoves + it.first.name, current.value, it.second, current.fixation))
         }
 
         val storeMove = current.availableMoves.filterIsInstance<StoreMove>().firstOrNull()
@@ -462,14 +456,14 @@ fun operate(cfg: Cfg) : List<String> {
             val newMoves = current.availableMoves.toMutableList()
             newMoves.removeIf { it is RestoreMove }
             newMoves.add(RestoreMove("rest${current.value}", fAddDigits(current.value)))
-            queue.offer(State(current.doneMoves appendCopy storeMove.name, current.value, newMoves, current.fixation))
+            queue.offer(State(current.doneMoves + storeMove.name, current.value, newMoves, current.fixation))
         }
 
         if (current.availableMoves.filterIsInstance<FixMove>().any() && current.fixation == null) {
             current.value.toString().indices.map { it + 1 }.forEach {
                 queue.offer(
                     State(
-                        current.doneMoves appendCopy "fix$it",
+                        current.doneMoves + "fix$it",
                         current.value,
                         current.availableMoves,
                         fixationFromNumber(it, current.value)
