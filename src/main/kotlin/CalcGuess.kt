@@ -192,7 +192,7 @@ fun fSubtractXAtDigit(x: Int): (Int) -> List<Pair<String, Int>> = { number ->
         val newdigit = ((intdigit - x) % 10).digitToChar()
         array[it] = newdigit
         val result = String(array)
-        println("$x | $it | $number | $result")
+        //println("$x | $it | $number | $result")
         "p-$x.${it + 1}" to result.toInt()
     }
     //(0..number.countDigits()).map { "p-$x@${it + 1}" to number - x * 10.pow(it) }
@@ -473,7 +473,7 @@ fun operate(cfg: Cfg) : List<String> {
         }
     }
 
-    throw IllegalStateException("Solution not found")
+    throw kotlin.IllegalStateException("Solution not found")
 }
 
 fun exec(input: String) {
