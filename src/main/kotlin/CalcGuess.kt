@@ -399,7 +399,7 @@ fun operate(cfg: Cfg) : List<String> {
             continue
 
         val portalized = portalize(current.value, cfg.portal)
-        if (portalized != current.value) {
+        if (portalized != current.value && current.doneMoves.isNotEmpty()) {
             queue.offer(State(current.doneMoves, portalized, current.availableMoves))
             continue
         }
@@ -505,7 +505,8 @@ fun portalize(num: Int, portal: Portal?): Int {
 }
 
 fun main() {
-    val input = "9,35,4,,lock,ins7,sum"
+//    val input = "9,35,4,,lock,ins7,sum"
+    val input = "5,62,2,21,+2,0,inv10"
     println(input)
     val cfg = decode(input)
     println(operate(cfg).joinToString(", "))
