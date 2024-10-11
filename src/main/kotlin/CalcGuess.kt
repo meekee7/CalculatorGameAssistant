@@ -283,12 +283,14 @@ fun decode(input: String): Cfg {
                 token,
                 token.substring(2).toInt(),
                 ::fAddXAtDigit,
-                { "p+" + it })// token rangedMove fAddXAtDigit(token.substring(2).toInt())
+                { "p+" + it })
+
             token.startsWith("p-") -> NumberedRangedMove(
                 token,
                 token.substring(2).toInt(),
                 ::fSubtractXAtDigit,
-                { "p-" + it }) // token rangedMove fSubtractXAtDigit(token.substring(2).toInt())
+                { "p-" + it })
+
             token.startsWith('+') -> NumberedSingleMove(
                 token,
                 token.substring(1).toInt(),
@@ -317,7 +319,8 @@ fun decode(input: String): Cfg {
                 token,
                 token.substring(1).toInt(),
                 ::fRemove,
-                { "c" + it }) //token singleMove fRemove(token.substring(1))
+                { "c" + it })
+
             token == "shift" -> token rangedMove fShiftRanged()
             token == "shift2l" || token == "shift2L" || token == "shift2<" -> token singleMove fShift2L()
             token == "shift2r" || token == "shift2R" || token == "shift2>" -> token singleMove fShift2R()
@@ -330,6 +333,7 @@ fun decode(input: String): Cfg {
             token == "q" || token == "d" || token == "sum" -> token singleMove fDigitSum()
             token == "store" -> StoreMove()
             token == "fix" || token == "lock" -> FixMove()
+
             token.startsWith('s', true) -> {
                 val nums = token.substring(1).split('.')
                 token singleMove fSubst(nums[0], nums[1])
@@ -343,17 +347,21 @@ fun decode(input: String): Cfg {
             token == "m" || token == "mir" || token == "mirror" -> token singleMove fMirror()
             token == "inv10" -> token singleMove fInv10()
             token in removeList -> token rangedMove fDel()
+
             token.startsWith("ins") -> NumberedRangedMove(
                 token,
                 token.substring(3).toInt(),
                 ::fInsert,
-                { "ins" + it })//
+                { "ins" + it })
+
             token.startsWith("rep") -> NumberedRangedMove(
                 token,
                 token.substring(3).toInt(),
                 ::fReplace,
-                { "rep" + it })// // token rangedMove fInsert(token.substring(3))
+                { "rep" + it })
+
             token.startsWith("b+") -> ButtonChangeMove(token, fAddX(token.substring(2).toInt()))
+
             else -> NumberedSingleMove(token, token.toInt(), ::fAddDigits, { it.toString() })
         }
     }
