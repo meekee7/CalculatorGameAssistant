@@ -27,15 +27,17 @@ data class Fixation(val pos: Int, val value: Int) {
             return if (input < 0) -result else result
         }
     }
-}
 
-fun fixationFromNumber(pos: Int, number: Int): Fixation? {
-    val numStr = number.toString()
-    val char = numStr[numStr.length - pos]
-    if (!char.isDigit())
-        return null
-    val digit = char.digitToInt()
-    return Fixation(pos, digit)
+    companion object {
+        fun fromNumber(pos: Int, number: Int): Fixation? {
+            val numStr = number.toString()
+            val char = numStr[numStr.length - pos]
+            if (!char.isDigit())
+                return null
+            val digit = char.digitToInt()
+            return Fixation(pos, digit)
+        }
+    }
 }
 
 data class State(
@@ -175,7 +177,6 @@ fun fAddXAtDigit(x: Int): (Int) -> List<Pair<String, Int>> = { number ->
         val result = String(array)
         "p+$x.${it + 1}" to result.toInt()
     }
-    //(0..number.countDigits()).map { "p+$x@${it + 1}" to number + x * 10.pow(it) }
 }
 
 fun fSubtractXAtDigit(x: Int): (Int) -> List<Pair<String, Int>> = { number ->
@@ -186,16 +187,12 @@ fun fSubtractXAtDigit(x: Int): (Int) -> List<Pair<String, Int>> = { number ->
         var intdigit = "$digit".toInt()
         if (intdigit < x) {
             intdigit += 10
-            //println("$intdigit AND $x")
-            //return@map "INvALID" to Int.MIN_VALUE
         }
         val newdigit = ((intdigit - x) % 10).digitToChar()
         array[it] = newdigit
         val result = String(array)
-        //println("$x | $it | $number | $result")
         "p-$x.${it + 1}" to result.toInt()
     }
-    //(0..number.countDigits()).map { "p-$x@${it + 1}" to number - x * 10.pow(it) }
 }
 
 fun fFlipSign(): (Int) -> Int = { it * -1 }
@@ -230,25 +227,14 @@ fun fShiftRanged(): (Int) -> List<Pair<String, Int>> = { number ->
     if (number < 10)
         emptyList()
 
-//    (0..number.length).map { index ->
-//        "ins$str.${index + 1}" to (number.substring(0, index) + str + number.substring(index)).toInt()
-//    }
-
     else {
         val str = number.toString()
-        //val last = str.last()
-        //str = str.substring(0, str.length - 1)
         str.indices.map {
             val inv = str.lastIndex - it
             val prefix = str.substring(0, inv)
             val suffix = str.substring(inv)
             "shift${it + 1}" to (suffix + prefix).toInt()
-            //if (it == 0)
-            //    "shift1" to (last + suffix).toInt()
-            //else
-            //    "shift${it + 1}" to (suffix + last + prefix).toInt()
         }
-        // fInsert("$last")(str.toInt()).map { "shift" + it.first.substringAfter('.') to it.second }
     }
 }
 
@@ -392,13 +378,13 @@ fun operate(cfg: Cfg) : List<String> {
 
     while (queue.isNotEmpty()) {
         val current = queue.poll()
-        //println(current)
+
         if (current.value == Int.MIN_VALUE)
             continue
         if (current.value >= 1_000_000)
             continue
 
-        val portalized = portalize(current.value, cfg.portal)
+        val portalized = cfg.portal.portalize(current.value)
         if (portalized != current.value && current.doneMoves.isNotEmpty()) {
             queue.offer(State(current.doneMoves, portalized, current.availableMoves))
             continue
@@ -409,16 +395,11 @@ fun operate(cfg: Cfg) : List<String> {
             continue
         }
 
-        if (current.value == target) {
-            //println(current.doneMoves.joinToString(", "))
-//            current.moves.forEach(::println)
+        if (current.value == target)
             return current.doneMoves
-        }
-
 
         if (current.doneMoves.size == maxdepth)
             continue
-
 
         val moves = current.availableMoves.filterIsInstance<SingleMove>()
         moves.forEach {
@@ -466,7 +447,7 @@ fun operate(cfg: Cfg) : List<String> {
                         current.doneMoves + "fix$it",
                         current.value,
                         current.availableMoves,
-                        fixationFromNumber(it, current.value)
+                        Fixation.fromNumber(it, current.value)
                     )
                 )
             }
@@ -484,18 +465,18 @@ fun String.x() {
     exec(this)
 }
 
-fun portalize(num: Int, portal: Portal?): Int {
-    if (portal == null)
+fun Portal?.portalize(num: Int): Int {
+    if (this == null)
         return num
 
     val numCharDigits = num.toString().filter { it.isDigit() }.map { it.digitToInt() }.toMutableList()
-    if (numCharDigits.size < portal.drop)
+    if (numCharDigits.size < this.drop)
         return num
 
-    val dropped = numCharDigits.removeAt(numCharDigits.size - portal.drop)
+    val dropped = numCharDigits.removeAt(numCharDigits.size - this.drop)
     val remainder = numCharDigits.joinToString("").toInt()
 
-    val outExp = 10.pow(portal.inject - 1)
+    val outExp = 10.pow(this.inject - 1)
     val sum = remainder + dropped * outExp
 
     return if (num < 0)
