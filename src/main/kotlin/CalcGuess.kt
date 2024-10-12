@@ -84,10 +84,14 @@ fun DigitSum(x: Int): Int = when {
 fun fAddX(x: Int): (Int) -> Int = { it + x }
 fun fMinusX(x: Int): (Int) -> Int = { it - x }
 fun fMulX(x: Int): (Int) -> Int = { it * x }
+fun fDivXRoundDown(x: Int): (Int) -> Int = { it / x }
 fun fDivX(x: Int): (Int) -> Int = { if (it % x == 0) it / x else Int.MIN_VALUE }
+fun fModuloX(x:Int): (Int) -> Int = { it % x }
 fun fLShift(): (Int) -> Int = { it / 10 }
+fun fRShift(): (Int) -> Int = { if (it < 10) 0 else it.toString().substring(1).toInt() }
 fun fSubst(from: String, to: String): (Int) -> Int = { it.toString().replace(from, to).toInt() }
-fun fAddDigits(x: Int): (Int) -> Int = { (it.toString() + x.toString()).toIntOrNull() ?: Int.MIN_VALUE }
+fun fAddDigitsFront(x: Int): (Int) -> Int = { (x.toString() + it.toString()).toIntOrNull() ?: Int.MIN_VALUE }
+fun fAddDigitsBack(x: Int): (Int) -> Int = { (it.toString() + x.toString()).toIntOrNull() ?: Int.MIN_VALUE }
 fun fSquare(): (Int) -> Int = { it * it }
 fun fCube(): (Int) -> Int = { it * it * it }
 fun fInv(): (Int) -> Int = { it * -1 }
@@ -258,6 +262,34 @@ fun fInv10(): (Int) -> Int = {
         .joinToString("").toInt()
 }
 
+fun fIncDigits(x:Int) : (Int) -> Int = {
+    if (it == 0)
+        x * -1
+    else if (it < 0)
+        fIncDigits(x)(it * -1) * -1
+    else {
+        val str = it.toString().map { it.digitToInt() }.map { it + x }.joinToString("")
+        if (str.length > 9)
+            it
+        else
+            str.toInt()
+    }
+}
+
+fun fDecDigits(x:Int) : (Int) -> Int = {
+    if (it == 0)
+        0
+    else if (it < 0)
+        -1
+    else
+        it.toString()
+            .map { it.digitToInt() }
+            .map { if (it == 0) 0 else it - x }
+            .map { if (it < 0) 0 else it }
+            .joinToString("")
+            .toInt()
+}
+
 data class Cfg(
     val target: Int,
     val start: Int,
@@ -266,7 +298,10 @@ data class Cfg(
     val moves: List<NamedMove>
 )
 
-fun decode(input: String): Cfg {
+fun decodeCalculator(input: String) = decode(input, ::fDivX)
+fun decodeGenius(input: String) = decode(input, ::fDivXRoundDown)
+
+fun decode(input: String, divisor : (Int) -> (Int) -> Int): Cfg {
     val inputs = input.split(',').map { it.trim() }
 
     val target = inputs[0].toInt()
@@ -279,6 +314,20 @@ fun decode(input: String): Cfg {
 
     val moves = inputs.subList(4, inputs.size).map { token ->
         when {
+            token == "+<=>-" || token == "+/-" || token == "flip" -> token singleMove fFlipSign()
+
+            token.startsWith("+>") -> NumberedSingleMove(
+                token,
+                token.substring(2).toInt(),
+                ::fAddDigitsFront,
+                {"+>"+ it})
+
+            token.startsWith("<+") -> NumberedSingleMove(
+                token,
+                token.substring(2).toInt(),
+                ::fAddDigitsBack,
+                {"<+"+ it})
+
             token.startsWith("p+") -> NumberedRangedMove(
                 token,
                 token.substring(2).toInt(),
@@ -306,13 +355,18 @@ fun decode(input: String): Cfg {
             token.startsWith('*') || token.startsWith('x', true) -> NumberedSingleMove(
                 token,
                 token.substring(1).toInt(),
-                ::fMulX, { token.substring(0, 1) + it }
-            )
+                ::fMulX, { token.substring(0, 1) + it })
 
-            token.startsWith('/') -> NumberedSingleMove(
+            token.startsWith('/')  || token.startsWith('÷') -> NumberedSingleMove(
                 token,
                 token.substring(1).toInt(),
-                ::fDivX,
+                divisor,
+                { token.substring(0, 1) + it })
+
+            token.startsWith('%') -> NumberedSingleMove(
+                token,
+                token.substring(1).toInt(),
+                ::fModuloX,
                 { token.substring(0, 1) + it })
 
             token.startsWith("c") -> NumberedSingleMove(
@@ -321,11 +375,12 @@ fun decode(input: String): Cfg {
                 ::fRemove,
                 { "c" + it })
 
+
             token == "shift" -> token rangedMove fShiftRanged()
             token == "shift2l" || token == "shift2L" || token == "shift2<" -> token singleMove fShift2L()
             token == "shift2r" || token == "shift2R" || token == "shift2>" -> token singleMove fShift2R()
-            token == "flip" || token == "+/-" -> token singleMove fFlipSign()
             token == "<<" -> token singleMove fLShift()
+            token == ">>" -> token singleMove fRShift()
             token == "^2" || token == "p2" -> token singleMove fSquare()
             token == "^3" || token == "p3" -> token singleMove fCube()
             token == "su" || token == "sa" || token == "s>" -> token singleMove fSortAsc()
@@ -336,6 +391,11 @@ fun decode(input: String): Cfg {
 
             token.startsWith('s', true) -> {
                 val nums = token.substring(1).split('.')
+                token singleMove fSubst(nums[0], nums[1])
+            }
+
+            token.contains("=>") -> {
+                val nums = token.split("=>")
                 token singleMove fSubst(nums[0], nums[1])
             }
 
@@ -360,9 +420,22 @@ fun decode(input: String): Cfg {
                 ::fReplace,
                 { "rep" + it })
 
+            token.startsWith('↑') || token.startsWith('i') -> NumberedSingleMove(
+                token,
+                token.substring(1).toInt(),
+                ::fIncDigits,
+                { "↑" + it })
+
+            token.startsWith('↓') || token.startsWith('d') -> NumberedSingleMove(
+                token,
+                token.substring(1).toInt(),
+                ::fDecDigits,
+                { "↑" + it })
+
+
             token.startsWith("b+") -> ButtonChangeMove(token, fAddX(token.substring(2).toInt()))
 
-            else -> NumberedSingleMove(token, token.toInt(), ::fAddDigits, { it.toString() })
+            else -> NumberedSingleMove(token, token.toInt(), ::fAddDigitsBack, { it.toString() })
         }
     }
 
@@ -444,7 +517,7 @@ fun operate(cfg: Cfg) : List<String> {
         if (storeMove != null) {
             val newMoves = current.availableMoves.toMutableList()
             newMoves.removeIf { it is RestoreMove }
-            newMoves.add(RestoreMove("rest${current.value}", fAddDigits(current.value)))
+            newMoves.add(RestoreMove("rest${current.value}", fAddDigitsBack(current.value)))
             queue.offer(State(current.doneMoves + storeMove.name, current.value, newMoves, current.fixation))
         }
 
@@ -466,7 +539,7 @@ fun operate(cfg: Cfg) : List<String> {
 }
 
 fun exec(input: String) {
-    println(operate(decode(input)).joinToString(", "))
+    println(operate(decodeCalculator(input)).joinToString(", "))
 }
 
 fun String.x() {
@@ -497,6 +570,6 @@ fun main() {
 //    val input = "9,35,4,,lock,ins7,sum"
     val input = "5,62,2,21,+2,0,inv10"
     println(input)
-    val cfg = decode(input)
+    val cfg = decodeCalculator(input)
     println(operate(cfg).joinToString(", "))
 }

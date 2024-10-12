@@ -6,7 +6,11 @@ import io.kotest.data.row
 import io.kotest.matchers.shouldBe
 
 infix fun String.shouldMake(expected: List<String>) {
-    operate(decode(this)) shouldBe expected
+    operate(decodeCalculator(this)) shouldBe expected
+}
+
+infix fun String.shouldMakeG(expected: List<String>) {
+    operate(decodeGenius(this)) shouldBe expected
 }
 
 class PowTest : FunSpec({
